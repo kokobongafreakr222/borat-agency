@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Борат AI Responder — Пока вы спите, он продаёт</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-bg: #0F0E0C;
+            --color-surface: #1A1814;
+            --color-surface-light: #252320;
+            --color-amber: #F59E0B;
+            --color-amber-light: #FBBF24;
+            --color-orange: #F97316;
+            --color-rose: #FB7185;
+            --color-gold: #D4A574;
+            --color-text: #FAF9F7;
+            --color-text-muted: #A8A49D;
+            --color-success: #10B981;
+            --shadow-glow: 0 0 40px rgba(245, 158, 11, 0.15);
+            --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--color-bg);
+            color: var(--color-text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Ambient background */
+        .ambient-bg {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            background: 
+                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(245, 158, 11, 0.08), transparent),
+                radial-gradient(ellipse 60% 40% at 80% 80%, rgba(249, 115, 22, 0.05), transparent);
+        }
+
+        /* Noise texture */
+        .noise {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* Typography */
+        h1, h2, h3 {
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+            line-height: 1.1;
+        }
+
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 80px 0;
+            position: relative;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+            color: var(--color-amber-light);
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 10px 20px;
+            border-radius: 100px;
+            margin-bottom: 32px;
+            width: fit-content;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .hero-badge::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: var(--color-amber);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.2); }
+        }
+
+        .hero h1 {
+            font-size: clamp(40px, 8vw, 72px);
+            margin-bottom: 24px;
+            animation: fadeInUp 0.6s ease-out 0.1s both;
+        }
+
+        .hero h1 .gradient-text {
+            background: linear-gradient(135deg, var(--color-amber) 0%, var(--color-orange) 50%, var(--color-rose) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-subtitle {
+            font-size: clamp(18px, 3vw, 22px);
+            color: var(--color-text-muted);
+            max-width: 540px;
+            margin-bottom: 40px;
+            line-height: 1.7;
+            animation: fadeInUp 0.6s ease-out 0.2s both;
+        }
+
+        /* Chat Preview */
+        .chat-preview {
+            position: absolute;
+            right: 5%;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 340px;
+            display: none;
+        }
+
+        @media (min-width: 1024px) {
+            .chat-preview { display: block; }
+        }
+
+        .chat-window {
+            background: var(--color-surface);
+            border: 1px solid var(--color-surface-light);
+            border-radius: 24px;
+            padding: 20px;
+            box-shadow: var(--shadow-card), var(--shadow-glow);
+            animation: float 6s ease-in-out infinite, fadeInUp 0.8s ease-out 0.4s both;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+
+        .chat-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--color-surface-light);
+        }
+
+        .bot-avatar {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, var(--color-amber), var(--color-orange));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            animation: gentle-pulse 3s ease-in-out infinite;
+        }
+
+        @keyframes gentle-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+            50% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+        }
+
+        .bot-info h4 {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .bot-status {
+            font-size: 12px;
+            color: var(--color-success);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .bot-status::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            background: var(--color-success);
+            border-radius: 50%;
+        }
+
+        .chat-message {
+            margin-bottom: 12px;
+            animation: messagePop 0.3s ease-out;
+        }
+
+        @keyframes messagePop {
+            from { opacity: 0; transform: translateY(10px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .message-bubble {
+            background: var(--color-surface-light);
+            padding: 12px 16px;
+            border-radius: 16px;
+            border-bottom-left-radius: 4px;
+            font-size: 14px;
+            line-height: 1.5;
+            max-width: 85%;
+        }
+
+        .message-bubble.user {
+            background: linear-gradient(135deg, var(--color-amber), var(--color-orange));
+            color: white;
+            margin-left: auto;
+            border-bottom-left-radius: 16px;
+            border-bottom-right-radius: 4px;
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 16px;
+        }
+
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            background: var(--color-amber);
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-10px); }
+        }
+
+        /* Buttons */
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            animation: fadeInUp 0.6s ease-out 0.3s both;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 18px 32px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 16px;
+            font-weight: 600;
+            text-decoration: none;
+            border-radius: 14px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--color-amber) 0%, var(--color-orange) 100%);
+            color: white;
+            box-shadow: 0 4px 20px rgba(245, 158, 11, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(245, 158, 11, 0.4);
+        }
+
+        .btn-primary:active {
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--color-text);
+            border: 1px solid var(--color-surface-light);
+        }
+
+        .btn-secondary:hover {
+            background: var(--color-surface);
+            border-color: var(--color-amber);
+            color: var(--color-amber);
+        }
+
+        /* Pain Section */
+        .pain-section {
+            padding: 120px 0;
+            background: var(--color-surface);
+            position: relative;
+        }
+
+        .pain-section::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse 60% 50% at 50% 100%, rgba(251, 113, 22, 0.05), transparent);
+            pointer-events: none;
+        }
+
+        .section-label {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--color-rose);
+            margin-bottom: 16px;
+        }
+
+        .pain-section h2 {
+            font-size: clamp(32px, 5vw, 48px);
+            margin-bottom: 60px;
+            max-width: 600px;
+        }
+
+        .pain-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+        }
+
+        .pain-card {
+            background: var(--color-bg);
+            border: 1px solid var(--color-surface-light);
+            border-radius: 20px;
+            padding: 32px;
+            transition: all 0.3s ease;
+        }
+
+        .pain-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(251, 113, 22, 0.3);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .pain-icon {
+            width: 56px;
+            height: 56px;
+            background: rgba(251, 113, 22, 0.1);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin-bottom: 20px;
+        }
+
+        .pain-card h3 {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--color-text);
+        }
+
+        .pain-card p {
+            color: var(--color-text-muted);
+            font-size: 15px;
+            line-height: 1.7;
+        }
+
+        /* Solution Section */
+        .solution-section {
+            padding: 120px 0;
+            position: relative;
+        }
+
+        .solution-header {
+            text-align: center;
+            max-width: 640px;
+            margin: 0 auto 80px;
+        }
+
+        .solution-header h2 {
+            font-size: clamp(32px, 5vw, 48px);
+            margin-bottom: 20px;
+        }
+
+        .solution-header p {
+            color: var(--color-text-muted);
+            font-size: 18px;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 32px;
+        }
+
+        .feature-card {
+            background: var(--color-surface);
+            border: 1px solid var(--color-surface-light);
+            border-radius: 24px;
+            padding: 40px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s ease;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--color-amber), var(--color-orange), var(--color-rose));
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.4s ease;
+        }
+
+        .feature-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+        }
+
+        .feature-number {
+            font-family: 'Playfair Display', serif;
+            font-size: 64px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--color-amber), var(--color-orange));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            opacity: 0.3;
+            line-height: 1;
+            margin-bottom: 20px;
+        }
+
+        .feature-card h3 {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .feature-card p {
+            color: var(--color-text-muted);
+            line-height: 1.7;
+        }
+
+        /* Pricing Section */
+        .pricing-section {
+            padding: 120px 0;
+            background: var(--color-surface);
+            position: relative;
+        }
+
+        .pricing-section::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(245, 158, 11, 0.05), transparent);
+            pointer-events: none;
+        }
+
+        .pricing-header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .pricing-header h2 {
+            font-size: clamp(32px, 5vw, 48px);
+            margin-bottom: 16px;
+        }
+
+        .pricing-header p {
+            color: var(--color-text-muted);
+            font-size: 18px;
+        }
+
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 32px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .pricing-card {
+            background: var(--color-bg);
+            border: 1px solid var(--color-surface-light);
+            border-radius: 24px;
+            padding: 40px;
+            position: relative;
+            transition: all 0.4s ease;
+        }
+
+        .pricing-card.featured {
+            border-color: var(--color-amber);
+            box-shadow: 0 0 60px rgba(245, 158, 11, 0.1);
+            transform: scale(1.02);
+        }
+
+        .pricing-card.featured::before {
+            content: 'Популярное';
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, var(--color-amber), var(--color-orange));
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 6px 16px;
+            border-radius: 100px;
+        }
+
+        .pricing-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+        }
+
+        .pricing-card.featured:hover {
+            transform: scale(1.02) translateY(-8px);
+        }
+
+        .pricing-name {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .pricing-price {
+            font-family: 'Playfair Display', serif;
+            font-size: 56px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--color-amber), var(--color-orange));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        .pricing-period {
+            color: var(--color-text-muted);
+            font-size: 15px;
+            margin-bottom: 32px;
+        }
+
+        .pricing-features {
+            list-style: none;
+            margin-bottom: 32px;
+        }
+
+        .pricing-features li {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--color-surface-light);
+            font-size: 15px;
+        }
+
+        .pricing-features li:last-child {
+            border-bottom: none;
+        }
+
+        .pricing-features li::before {
+            content: '✓';
+            width: 24px;
+            height: 24px;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--color-success);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .setup-note {
+            text-align: center;
+            margin-top: 48px;
+            padding: 24px;
+            background: var(--color-bg);
+            border-radius: 16px;
+            border: 1px solid var(--color-surface-light);
+        }
+
+        .setup-note p {
+            color: var(--color-text-muted);
+            font-size: 15px;
+        }
+
+        .setup-note strong {
+            color: var(--color-amber);
+        }
+
+        /* CTA Section */
+        .cta-section {
+            padding: 120px 0;
+            text-align: center;
+            position: relative;
+        }
+
+        .cta-section::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse 60% 60% at 50% 50%, rgba(245, 158, 11, 0.1), transparent);
+            pointer-events: none;
+        }
+
+        .cta-gift {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, var(--color-amber), var(--color-orange));
+            border-radius: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            margin: 0 auto 32px;
+            animation: float 4s ease-in-out infinite;
+            box-shadow: 0 20px 40px rgba(245, 158, 11, 0.3);
+        }
+
+        .cta-section h2 {
+            font-size: clamp(36px, 6vw, 56px);
+            margin-bottom: 20px;
+        }
+
+        .cta-section > p {
+            color: var(--color-text-muted);
+            font-size: 20px;
+            max-width: 480px;
+            margin: 0 auto 40px;
+        }
+
+        .guarantee-badges {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 24px;
+            margin-top: 48px;
+        }
+
+        .guarantee-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            color: var(--color-text-muted);
+        }
+
+        .guarantee-badge::before {
+            content: '✓';
+            width: 20px;
+            height: 20px;
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--color-success);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        /* Footer */
+        footer {
+            padding: 60px 0;
+            text-align: center;
+            border-top: 1px solid var(--color-surface-light);
+        }
+
+        footer p {
+            color: var(--color-text-muted);
+            font-size: 15px;
+        }
+
+        footer a {
+            color: var(--color-amber);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Scroll reveal */
+        .reveal {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Mobile adjustments */
+        @media (max-width: 768px) {
+            .hero { padding: 60px 0; }
+            .pain-section, .solution-section, .pricing-section, .cta-section { padding: 80px 0; }
+            .btn-group { flex-direction: column; }
+            .btn { width: 100%; justify-content: center; }
+            .pricing-card.featured { transform: none; }
+            .pricing-card.featured:hover { transform: translateY(-8px); }
+        }
+    </style>
+</head>
+<body>
+    <div class="ambient-bg"></div>
+    <div class="noise"></div>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-badge">Работаем 24/7 без выходных</div>
+            
+            <h1>
+                Пока вы спите,<br>
+                <span class="gradient-text">он продаёт</span>
+            </h1>
+            
+            <p class="hero-subtitle">
+                Автоответчик для Telegram, который мгновенно реагирует на сообщения клиентов. 
+                Не теряйте заявки из-за долгого ожидания.
+            </p>
+
+            <div class="btn-group">
+                <a href="https://t.me/Malovnik" class="btn btn-primary">
+                    <span>⚡</span> Начать бесплатно
+                </a>
+                <a href="#pain" class="btn btn-secondary">
+                    <span>→</span> Узнать больше
+                </a>
+            </div>
+        </div>
+
+        <!-- Chat Preview (Desktop) -->
+        <div class="chat-preview">
+            <div class="chat-window">
+                <div class="chat-header">
+                    <div class="bot-avatar">👑</div>
+                    <div class="bot-info">
+                        <h4>Борат AI</h4>
+                        <div class="bot-status">Онлайн</div>
+                    </div>
+                </div>
+                
+                <div class="chat-message">
+                    <div class="message-bubble">
+                        Здравствуйте! 👋 Сколько стоит запись на маникюр завтра в 15:00?
+                    </div>
+                </div>
+                
+                <div class="chat-message" style="animation-delay: 0.3s;">
+                    <div class="message-bubble user">
+                        Привет! Маникюр — 2500₽. Завтра в 15:00 есть место. Записать?
+                    </div>
+                </div>
+                
+                <div class="chat-message" style="animation-delay: 0.6s;">
+                    <div class="message-bubble">
+                        Да, записывайте!
+                    </div>
+                </div>
+
+                <div class="typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pain Section -->
+    <section class="pain-section" id="pain">
+        <div class="container">
+            <div class="section-label">Знакомо?</div>
+            <h2>Клиенты пишут, а вы не успеваете отвечать</h2>
+            
+            <div class="pain-grid">
+                <div class="pain-card reveal">
+                    <div class="pain-icon">😰</div>
+                    <h3>Постоянные уведомления</h3>
+                    <p>Телефон вибрирует каждые 5 минут. Невозможно сосредоточиться на работе, но игнорировать нельзя.</p>
+                </div>
+                
+                <div class="pain-card reveal">
+                    <div class="pain-icon">😤</div>
+                    <h3>Теряете клиентов</h3>
+                    <p>80% клиентов уходят к конкурентам, если ответа нет в течение часа. А вы отвечаете через три.</p>
+                </div>
+                
+                <div class="pain-card reveal">
+                    <div class="pain-icon">😵</div>
+                    <h3>Одинаковые вопросы</h3>
+                    <p>«Сколько стоит?», «Какой адрес?», «Есть ли в наличии?» — вы отвечаете одно и то же 20 раз в день.</p>
+                </div>
+                
+                <div class="pain-card reveal">
+                    <div class="pain-icon">🌙</div>
+                    <h3>Ночные сообщения</h3>
+                    <p>Клиенты пишут в 2 ночи, утром у них уже нет нужды. Вы просыпаетесь к потерянным заявкам.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Solution Section -->
+    <section class="solution-section">
+        <div class="container">
+            <div class="solution-header reveal">
+                <h2>Как работает <span class="gradient-text">Борат AI</span></h2>
+                <p>Умный автоответчик, который звучит как человек и решает типовые вопросы без вашего участия</p>
+            </div>
+            
+            <div class="features-grid">
+                <div class="feature-card reveal">
+                    <div class="feature-number">01</div>
+                    <h3>Мгновенные ответы</h3>
+                    <p>Бот отвечает за секунды, пока клиент ещё «горячий». Никаких потерянных заявок из-за долгого ожидания.</p>
+                </div>
+                
+                <div class="feature-card reveal">
+                    <div class="feature-number">02</div>
+                    <h3>Умный как GPT-4</h3>
+                    <p>Если ответа нет в базе знаний — используется искусственный интеллект. Клиенты получают осмысленные ответы, а не «я не понимаю».</p>
+                </div>
+                
+                <div class="feature-card reveal">
+                    <div class="feature-number">03</div>
+                    <h3>Передача оператору</h3>
+                    <p>Сложные вопросы автоматически перенаправляются живому человеку. Вы не пропускаете важных обращений.</p>
+                </div>
+                
+                <div class="feature-card reveal">
+                    <div class="feature-number">04</div>
+                    <h3>Полная аналитика</h3>
+                    <p>Смотрите, что спрашивают клиенты чаще всего. Улучшайте бизнес на основе реальных данных.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section class="pricing-section" id="pricing">
+        <div class="container">
+            <div class="pricing-header reveal">
+                <h2>Прозрачные цены</h2>
+                <p>Без скрытых платежей и неожиданных списаний</p>
+            </div>
+            
+            <div class="pricing-grid">
+                <div class="pricing-card reveal">
+                    <div class="pricing-name">Базовый</div>
+                    <div class="pricing-price">$50</div>
+                    <div class="pricing-period">в месяц</div>
+                    <ul class="pricing-features">
+                        <li>До 500 сообщений</li>
+                        <li>База знаний</li>
+                        <li>GPT fallback</li>
+                        <li>Базовая статистика</li>
+                    </ul>
+                    <a href="https://t.me/Malovnik" class="btn btn-secondary" style="width: 100%; justify-content: center;">Выбрать</a>
+                </div>
+                
+                <div class="pricing-card featured reveal">
+                    <div class="pricing-name">Про</div>
+                    <div class="pricing-price">$100</div>
+                    <div class="pricing-period">в месяц</div>
+                    <ul class="pricing-features">
+                        <li>Неограниченно сообщений</li>
+                        <li>Расширенная аналитика</li>
+                        <li>Приоритетная поддержка</li>
+                        <li>Несколько операторов</li>
+                    </ul>
+                    <a href="https://t.me/Malovnik" class="btn btn-primary" style="width: 100%; justify-content: center;">Выбрать</a>
+                </div>
+            </div>
+            
+            <div class="setup-note reveal">
+                <p>⚡ <strong>Настройка:</strong> $200-500 единоразово. Включает обучение бота вашему бизнесу и интеграцию.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="container">
+            <div class="cta-gift">🎁</div>
+            <h2 class="reveal">2 недели бесплатно</h2>
+            <p class="reveal">Протестируйте бота без риска. Убедитесь, что он работает для вашего бизнеса, прежде чем платить.</p>
+            <a href="https://t.me/Malovnik" class="btn btn-primary reveal" style="font-size: 18px; padding: 20px 40px;">
+                <span>🚀</span> Попробовать бесплатно
+            </a>
+            
+            <div class="guarantee-badges reveal">
+                <div class="guarantee-badge">Без карты</div>
+                <div class="guarantee-badge">Отмена в любой момент</div>
+                <div class="guarantee-badge">Поддержка 24/7</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <p>👑 Борат AI Responder — ваш цифровой сотрудник<br>
+            Telegram: <a href="https://t.me/Malovnik">@Malovnik</a></p>
+        </div>
+    </footer>
+
+    <script>
+        // Scroll reveal animation
+        const observerOptions = {
+            root: null,
+            rootMargin: '0px',
+            threshold: 0.1
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('active');
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+        // Smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
